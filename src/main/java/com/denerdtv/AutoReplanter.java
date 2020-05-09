@@ -30,38 +30,45 @@ import java.util.*;
 import static org.bukkit.ChatColor.*;
 
 public class AutoReplanter extends JavaPlugin implements CommandExecutor, Listener {
+
+    // Constants
     public static final String NOTIFICATION = "notification";
     public static final String REPLANT = "replant";
     public static final String CHEST = "chest";
-    // Constants
+
     private final Vector UP = new Vector(0, 1, 0);
     private final Vector DOWN = new Vector(0, -1, 0);
+
     private final int MAX_REPLANTS_PER_SECOND = 1;
 
     // Static variables
+    private static AutoReplanter instance = null;
+
     public static final String COMMAND = "autoreplant";
     public static final String SERVER_PREFIX = BLACK + "[" + RED + "SERVER" + BLACK + "] " + RESET;
-    private static AutoReplanter instance = null;
 
     // Stored references
     private PluginManager plugin;
-    private CommandSignManager csm;
-    private AutoReplanterChestTracker arcs;
+
+    private final CommandSignManager csm = new CommandSignManager();
+    private final AutoReplanterChestTracker arcs = new AutoReplanterChestTracker();
 
     // Persistence
     private File file;
-    private YamlConfiguration config;
     private String configPath;
+    private YamlConfiguration config;
+
+    // Helpers
+    private final HashMap<Material, Material> cropSeeds = new HashMap<>();
+    private final Set<Material> hoes = new HashSet<>();
 
     // Plugin runtime
     private boolean showing = false;
-    private HashMap<Player, Boolean> enabled;
-    private AutoReplanterCommand autoReplanterCommandListener;
-    private HashSet<Location> emptyChests;
-    private HashSet<Location> unplantedCrops;
-    private HashMap<Location, Material> cropPreferences;
-    private HashMap<Material, Material> cropSeeds;
-    private Set<Material> hoes;
+    private final HashMap<Player, Boolean> enabled = new HashMap<>();
+    private final HashSet<Location> emptyChests = new HashSet<>();
+    private final HashSet<Location> unplantedCrops = new HashSet<>();
+    private final HashMap<Location, Material> cropPreferences = new HashMap<>();
+    private final AutoReplanterCommand autoReplanterCommandListener = new AutoReplanterCommand();
     private ParticleSystem particleSystem;
 
 
@@ -72,8 +79,6 @@ public class AutoReplanter extends JavaPlugin implements CommandExecutor, Listen
             AutoReplanter.instance = this;
         }
 
-        this.csm = new CommandSignManager();
-        this.arcs = new AutoReplanterChestTracker();
         this.csm.addDefinition(arcs);
     }
 
@@ -106,13 +111,7 @@ public class AutoReplanter extends JavaPlugin implements CommandExecutor, Listen
     }
 
     private void init() {
-        particleSystem = new ParticleSystem(Bukkit.getWorld("world"));
-        enabled = new HashMap<>();
-        unplantedCrops = new HashSet<>();
-        emptyChests = new HashSet<>();
-        cropPreferences = new HashMap<>();
-        cropSeeds = new HashMap<>();
-        hoes = new HashSet<>();
+        this.particleSystem = new ParticleSystem(Bukkit.getWorld("world"));
 
         particleSystem.addConfiguration(CHEST, ParticleConfiguration.create(Particle.VILLAGER_HAPPY).setAmount(15).setOffset(0.40));
         particleSystem.addConfiguration(REPLANT, ParticleConfiguration.create(Particle.VILLAGER_HAPPY).setAmount(15).setOffset(0.25));
@@ -128,8 +127,6 @@ public class AutoReplanter extends JavaPlugin implements CommandExecutor, Listen
         hoes.add(Material.STONE_HOE);
         hoes.add(Material.IRON_HOE);
         hoes.add(Material.DIAMOND_HOE);
-
-        this.autoReplanterCommandListener = new AutoReplanterCommand();
     }
 
     private void registerCommands() {
@@ -176,6 +173,7 @@ public class AutoReplanter extends JavaPlugin implements CommandExecutor, Listen
             Material m = Material.getMaterial((String) x.get("preference"));
             this.cropPreferences.put(l, m);
         }
+
         this.showing = this.config.getBoolean("showing");
         this.arcs.setSignLocations((List<Location>) this.config.getList("chests-locations", new ArrayList<Location>()));
     }
@@ -192,24 +190,27 @@ public class AutoReplanter extends JavaPlugin implements CommandExecutor, Listen
     }
 
     private void showParticles() {
+        // Chests that are empty
         for (Location l : this.emptyChests) {
             this.particleSystem.spawnCenter(NOTIFICATION, l);
         }
 
+        // Crops that cannot be planted
         for (Location l : this.unplantedCrops) {
             this.particleSystem.spawnCenter(NOTIFICATION, l);
         }
 
         if (!showing) return;
 
+        // Currently tracked crops
         for (Location loc : cropPreferences.keySet()) {
             this.particleSystem.spawnCenter(NOTIFICATION, loc.clone().add(UP));
         }
 
+        // Currently tracked chests
         for (Chest c : this.arcs.getChests()) {
             this.particleSystem.spawnCenter(CHEST, c.getLocation());
         }
-
     }
 
     private void runTicks() {

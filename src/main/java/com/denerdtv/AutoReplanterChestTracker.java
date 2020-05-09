@@ -18,19 +18,28 @@ import java.util.List;
 import static com.denerdtv.AutoReplanter.SERVER_PREFIX;
 
 public class AutoReplanterChestTracker implements CommandSignDefinition {
-    private List<Location> signLocations = new ArrayList<>();
-    private List<Chest> chests = new ArrayList<>();
+    private final List<Location> signLocations = new ArrayList<>();
+    private final List<Chest> chests = new ArrayList<>();
 
     @Override
     public boolean handlesEvent(SignChangeEvent e) {
-        if (e.getLine(0).equalsIgnoreCase("[AutoReplanter]")) {
+        String line = e.getLine(0);
 
-            Location attached = getAttachedLocation(e.getBlock());
-
-            return attached.getBlock().getType() == Material.CHEST;
+        if (line == null) {
+            return false;
         }
 
-        return false;
+        if (!line.equalsIgnoreCase("[AutoReplanter]")) {
+            return false;
+        }
+
+        Location attached = getAttachedLocation(e.getBlock());
+
+        if (attached == null) {
+            return false;
+        }
+
+        return attached.getBlock().getType() == Material.CHEST;
     }
 
     @Override
@@ -56,41 +65,52 @@ public class AutoReplanterChestTracker implements CommandSignDefinition {
 
     private boolean addChest(Location loc) {
         if (!signLocations.contains(loc)) {
-            signLocations.add(loc);
-            updateChests();
-
-            return true;
+            return false;
         }
 
-        return false;
+        signLocations.add(loc);
+        updateChests();
+
+        return true;
     }
 
     private boolean removeChest(Location loc) {
         if (signLocations.remove(loc)) {
-            updateChests();
-
-            return true;
+            return false;
         }
 
-        return false;
+        updateChests();
+
+        return true;
     }
 
     private void updateChests() {
         chests.clear();
 
         for (int i = 0; i < this.signLocations.size(); i++) {
-            Location signLocation = this.signLocations.get(i);
-            if (signLocation.getBlock().getBlockData() instanceof WallSign) {
-                Location attached = getAttachedLocation(signLocation.getBlock());
-                Chest chest = getChest(attached.getBlock());
+            try {
+                // Remove if it's not a WallSign
+                Location signLocation = this.signLocations.get(i);
+                if (!(signLocation.getBlock().getBlockData() instanceof WallSign)) {
+                    throw new Exception();
+                }
 
+                // Remove if is attached to nothing
+                Location attached = getAttachedLocation(signLocation.getBlock());
+                if (attached == null) {
+                    throw new Exception();
+                }
+
+                // Remove if not attached to chest
+                Chest chest = getChest(attached.getBlock());
                 if (chest == null) {
-                    continue;
+                    throw new Exception();
                 }
 
                 chests.add(chest);
-            } else {
+            } catch (Exception e) {
                 Bukkit.getConsoleSender().sendMessage("Removed chest location while iterating over chests!");
+                e.printStackTrace();
                 signLocations.remove(i--);
             }
         }
@@ -127,7 +147,7 @@ public class AutoReplanterChestTracker implements CommandSignDefinition {
     }
 
     public void setSignLocations(List<Location> signLocations) {
-        this.signLocations = signLocations;
+        this.signLocations.addAll(signLocations);
         updateChests();
     }
 }
