@@ -1,0 +1,8 @@
+name: com.denerdtv.AutoReplanter
+main: com.denerdtv.AutoReplanter
+version: 0.0.2
+author: de_nerdTV
+api-version: "1.15"
+commands:
+  autoreplant:
+    aliases: ap
